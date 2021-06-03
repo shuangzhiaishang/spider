@@ -1,6 +1,9 @@
 import enum
+from mydb import MyDB
 from PyQt5 import QtCore, QtGui, QtWidgets
 from network import NetWork
+import pandas as pd
+from copy import deepcopy
 
 class Ui_Form(object):
     def __init__(self, form):
@@ -182,21 +185,68 @@ class Ui_Form(object):
         self.progressBarTotal.setProperty("value", 100)
         self.showStatus("完成")
         
-
-    def funcResult(self):
+    def login(self):
         self.showStatus("尝试登录教务系统")
         if self.network.loginEAS(self.username, self.password) == False:
             self.showStatus("登陆教务系统失败")
             return
         self.showStatus("登录教务系统成功")
 
-        studentName = self.network.getStudentInfoFromEAS()
-        self.lineEditName.setText(studentName)
+        self.name = self.network.getStudentInfoFromEAS()
+        self.lineEditName.setText(self.name)
         self.progressBarTotal.setProperty("value", 5)
 
         results = self.network.getResultsFromEAS()
         self.progressBarTotal.setProperty("value", 15)
         self.showStatus("成功获取成绩信息")
+        return results
+    
+    def getResult(self, db):
+        login = db.checkPassword(self.username, self.password)
+        if not login:
+            print('wrong password')
+            return None
+        self.name = db.getName(self.username)
+        self.lineEditName.setText(self.name)
+        results = db.getGrades(self.username)
+        columns = ['课程', '成绩', '学分', '课程属性', '课程性质', '获得方式', '初修学期', '获得学期']
+        results = pd.DataFrame(results, columns=columns)
+        columns = columns[-2:] + columns[:-2]
+        return results[columns]
+    
+    def saveToDB(self, results, db):
+        print('save info to db')
+        student = [(self.username, self.name, self.password)]
+        grade = pd.DataFrame(deepcopy(results.loc[:, ['课程', '成绩']]))
+
+        results.drop('成绩', axis='columns', inplace=True)
+        columns = list(results.columns)
+        columns = columns[2:] + columns[:2]
+        results = results[columns]
+
+        grade = list(map(lambda x:(self.username,)+tuple(x), grade.values))
+        course = list(map(lambda x:tuple(x), results.values))
+        
+        db.insertIntoStudent(student)
+        db.insertIntoCourse(course)
+        db.insertIntoGrade(grade)
+        print('saved info')
+
+    def funcResult(self):
+        db = MyDB('mydb.db')
+        results = None
+        if db.exist(self.username):
+            print('student exist in db')
+            results = self.getResult(db)
+        else:
+            print('login...')
+            results = self.login()
+            if not results:
+                return
+            self.saveToDB(results, db)
+        
+        if results is None:
+            return
 
         model = QtGui.QStandardItemModel()
         self.tableViewOutput.setModel(model)
