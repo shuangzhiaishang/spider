@@ -1,20 +1,24 @@
 import sqlite3
 
-from pandas.io import sql
-
 # table course:
 #   id  credit  attribute   property    obtain  start   finish
 #
 # table student:
-#   id  name    password
+#   id  name    password    syllabus
 #
 # table grade
 #   student_id    course_id   score
+# 
+# table syllabus
+#   student_id    course_name   day_of_week     time_of_day
 #
 #
 # Retrieve student grades
 # Return (course_id, course_name, score, credit, attribute, property, obtain, start, finish)
 # where student_id = id of student you want to find
+#
+# Retrieve syllabus
+# Return (course_name, day_of_week, time_of_day)
 
 class MyDB:
     def __init__(self, db):
@@ -38,7 +42,7 @@ class MyDB:
     def insertIntoStudent(self, student):
         with sqlite3.connect(self._db) as con:
             cur = con.cursor()
-            cur.executemany('''insert or ignore into student values(?, ?, ?)''', student)
+            cur.executemany('''insert or ignore into student (id, name, password) values(?, ?, ?)''', student)
             con.commit()
             
     def insertIntoGrade(self, grade):
@@ -46,6 +50,15 @@ class MyDB:
             cur = con.cursor()
             cur.executemany('''insert or ignore into grade values(?, ?, ?)''', grade)
             con.commit()
+            
+    def insertIntoSyllabus(self, syllabus):
+        with sqlite3.connect(self._db) as con:
+            cur = con.cursor()
+            cur.executemany("insert into syllabus values(?, ?, ?, ?)", syllabus)
+            con.commit()
+            student_id = syllabus[0][0]
+            cur.execute("update student set syllabus='exist' where id=?", (student_id,)) 
+        
             
     def getGrades(self, student_id):
         with sqlite3.connect(self._db) as con:
@@ -66,6 +79,13 @@ class MyDB:
             student = cur.fetchone()
         return student
     
+    def existSyllabus(self, student_id):
+        with sqlite3.connect(self._db) as con:
+            cur = con.cursor()
+            cur.execute("select syllabus from student where id=?", (student_id,))
+            exist = cur.fetchone()[0]
+        return exist is not None
+    
     def checkPassword(self, student_id, password):
         with sqlite3.connect(self._db) as con:
             cur = con.cursor()
@@ -84,6 +104,13 @@ class MyDB:
             cur = con.cursor()
             cur.execute("select name from student where id=?", (student_id,))
             return cur.fetchone()[0]
+        
+    def getCourseSchedule(self, student_id):
+        with sqlite3.connect(self._db) as con:
+            cur = con.cursor()
+            cur.execute("select course_name, day_of_week, time_of_day from syllabus where student_id=?", (student_id,))
+            syllabus = cur.fetchall()
+        return syllabus
             
 if __name__ == "__main__":
 
@@ -102,4 +129,12 @@ if __name__ == "__main__":
     #print(db.exist('8211190222'))
     #print(db.exist('8211190221'))
     #print(db.checkPassword('8211190207', 'sh15290222858'))
-    db.deleteStudent('8211190207')
+    #db.deleteStudent('8211190207')
+    #student = [('8211190220', '袁宏远', None)]
+    #db.insertIntoStudent(student)
+    #syllabus = [('8211190207', '地图学', '四', '3-4')]
+    #db.insertIntoSyllabus(syllabus)
+    #print(db.existSyllabus('3'))
+    #print(db.existSyllabus('8211190207'))
+    #syllabus = db.getCourseSchedule('2')
+    #print(syllabus)
