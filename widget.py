@@ -154,20 +154,66 @@ class Ui_Form(object):
             self.funcCourseSchedule()
         elif self.curFunc == 1:
             self.funcResult()
-        
-    def funcCourseSchedule(self):
+            
+    def loginForCourseSchedule(self):
         if self.network.loginEAS(self.username, self.password) == False:
             self.showStatus("登陆教务系统失败")
             return
         self.showStatus("登录教务系统成功")
 
-        studentName = self.network.getStudentInfoFromEAS()
-        self.lineEditName.setText(studentName)
+        self.name = self.network.getStudentInfoFromEAS()
+        self.lineEditName.setText(self.name)
         self.progressBarTotal.setProperty("value", 5)
 
         courseSchedule = self.network.getCourseScheduleFromEAS()
+        print(courseSchedule)
+        print(type(courseSchedule))
         self.progressBarTotal.setProperty("value", 15)
         self.showStatus("成功获取课程表信息")
+        
+        return courseSchedule
+    
+    def getCourseSchedule(self, db):
+        result = db.getCourseSchedule(self.username)
+        columns = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+        index = ['1－2', '3－4', '5－6', '7－8', '9－10', '11－12']
+        df_syllabus = pd.DataFrame(columns=columns, index=index)
+        self.name = db.getName(self.username)
+        self.lineEditName.setText(self.name)
+        for course in result:
+            df_syllabus.loc[course[2], course[1]] = course[0]
+        df_syllabus.reset_index()
+        df_syllabus.fillna('', inplace=True)
+        return df_syllabus
+        
+    def saveCourseSchedule(self, courseSchedule, db):
+        syllabus = []
+        courseSchedule.set_index('', inplace=True)
+        courseSchedule.to_csv('data.csv')
+        for column in courseSchedule.columns:
+            for index in courseSchedule.index:
+                syllabus.append((self.username, courseSchedule.loc[index, column], column, index))
+        syllabus = list(filter(lambda course: course[1]!='', syllabus))
+        db.insertIntoSyllabus(syllabus)
+        
+    def funcCourseSchedule(self):
+        db = MyDB('mydb.db')
+        courseSchedule = None
+        if db.exist(self.username):
+            if db.existSyllabus(self.username):
+                print('student syllabus exist in db')
+                courseSchedule = self.getCourseSchedule(db)
+
+            else:
+                print('syllabus not exist')
+                print('login...')
+                courseSchedule = self.loginForCourseSchedule()
+                if courseSchedule is None:
+                    return
+                self.saveCourseSchedule(courseSchedule, db)
+        
+        if courseSchedule is None:
+            return
 
         model = QtGui.QStandardItemModel()
         self.tableViewOutput.setModel(model)
@@ -185,7 +231,7 @@ class Ui_Form(object):
         self.progressBarTotal.setProperty("value", 100)
         self.showStatus("完成")
         
-    def login(self):
+    def loginForResult(self):
         self.showStatus("尝试登录教务系统")
         if self.network.loginEAS(self.username, self.password) == False:
             self.showStatus("登陆教务系统失败")
@@ -214,7 +260,7 @@ class Ui_Form(object):
         columns = columns[-2:] + columns[:-2]
         return results[columns]
     
-    def saveToDB(self, results, db):
+    def saveGrades(self, results, db):
         print('save info to db')
         student = [(self.username, self.name, self.password)]
         grade = pd.DataFrame(deepcopy(results.loc[:, ['课程', '成绩']]))
@@ -240,10 +286,10 @@ class Ui_Form(object):
             results = self.getResult(db)
         else:
             print('login...')
-            results = self.login()
+            results = self.loginForResult()
             if not results:
                 return
-            self.saveToDB(results, db)
+            self.saveGrades(results, db)
         
         if results is None:
             return
