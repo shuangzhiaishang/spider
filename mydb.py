@@ -1,13 +1,13 @@
 import sqlite3
 
 # table course:
-#   id  credit  attribute   property    obtain  start   finish
+#   id  name  credit  attribute   property
 #
 # table student:
-#   id  name    password    syllabus
+#   id  name  password
 #
 # table grade
-#   student_id    course_id   score
+#   student_id    course_id   score  obtain  start finish
 # 
 # table syllabus
 #   student_id    course_name   day_of_week     time_of_day
@@ -36,7 +36,7 @@ class MyDB:
     def insertIntoCourse(self, course):
         with sqlite3.connect(self._db) as con:
             cur = con.cursor()
-            cur.executemany('''insert or ignore into course values(?, ?, ?, ?, ?, ?, ?)''', course)
+            cur.executemany('''insert or ignore into course values(?, ?, ?, ?, ?)''', course)
             con.commit()
             
     def insertIntoStudent(self, student):
@@ -48,7 +48,7 @@ class MyDB:
     def insertIntoGrade(self, grade):
         with sqlite3.connect(self._db) as con:
             cur = con.cursor()
-            cur.executemany('''insert or ignore into grade values(?, ?, ?)''', grade)
+            cur.executemany('''insert or ignore into grade values(?, ?, ?, ?, ?, ?)''', grade)
             con.commit()
             
     def insertIntoSyllabus(self, syllabus):
@@ -63,30 +63,17 @@ class MyDB:
     def getGrades(self, student_id):
         with sqlite3.connect(self._db) as con:
             cur = con.cursor()
-            cur.execute("select course_id, score from grade where student_id=?", (student_id,))
+            cur.execute("select course_id, score, obtain, start, finish from grade where student_id=?", (student_id,))
             
-            courses = cur.fetchall()
-            for i, course in enumerate(courses):
-                cur.execute('''select credit, attribute, property, obtain, start, finish from course where id=?''', (course[0],))
-                courses[i] = course + cur.fetchone()
+            grades = cur.fetchall()
+            print(grades)
+            for i, course in enumerate(grades):
+                cur.execute('''select name, credit, attribute, property from course where id=?''', (course[0],))
+                grades[i] = course + cur.fetchone()
             #courses = list(map(lambda t:(t[0], t[2], t[1], t[3], t[4], t[5], t[6], t[7]), courses))
-        return courses
+        return grades
     
-    def exist(self, student_id):
-        with sqlite3.connect(self._db) as con:
-            cur = con.cursor()
-            cur.execute("select * from student where id=?", (student_id,))
-            student = cur.fetchone()
-        return student
-    
-    def existSyllabus(self, student_id):
-        with sqlite3.connect(self._db) as con:
-            cur = con.cursor()
-            cur.execute("select syllabus from student where id=?", (student_id,))
-            exist = cur.fetchone()[0]
-        return exist is not None
-    
-    def checkPassword(self, student_id, password):
+    def login(self, student_id, password):
         with sqlite3.connect(self._db) as con:
             cur = con.cursor()
             cur.execute("select password from student where id=?", (student_id,))
@@ -97,6 +84,7 @@ class MyDB:
             cur = con.cursor()
             cur.execute("delete from student where id=?", (student_id,))
             cur.execute("delete from grade where student_id=?", (student_id,))
+            cur.execute("delete from syllabus where id=?", (student_id,))
             con.commit()
             
     def getName(self, student_id):
@@ -105,7 +93,7 @@ class MyDB:
             cur.execute("select name from student where id=?", (student_id,))
             return cur.fetchone()[0]
         
-    def getCourseSchedule(self, student_id):
+    def getSyllabus(self, student_id):
         with sqlite3.connect(self._db) as con:
             cur = con.cursor()
             cur.execute("select course_name, day_of_week, time_of_day from syllabus where student_id=?", (student_id,))
@@ -124,7 +112,8 @@ if __name__ == "__main__":
     db.insertIntoStudent(student)
     '''
     
-    grades = db.getGrades('8211190222')
+    grades = db.getGrades('8211190207')
+    print(grades)
     #print(grades)
     #print(db.exist('8211190222'))
     #print(db.exist('8211190221'))
